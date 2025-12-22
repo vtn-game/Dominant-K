@@ -82,7 +82,6 @@ namespace DominantK.Systems
         [SerializeField] private float dominantRevenueMultiplier = 1.5f;
 
         [Header("Visualization")]
-        [SerializeField] private Material triangleMaterial;
         [SerializeField] private bool showTriangles = true;
 
         private List<DominantTriangle> activeTriangles = new List<DominantTriangle>();
@@ -93,8 +92,15 @@ namespace DominantK.Systems
         private float revenueTimer;
 
         private List<GameObject> triangleVisuals = new List<GameObject>();
+        private Material triangleMaterial;
 
         public List<DominantTriangle> ActiveTriangles => activeTriangles;
+
+        public void Setup(PlacementSystem placement, GridSystem grid)
+        {
+            placementSystem = placement;
+            gridSystem = grid;
+        }
 
         public void Initialize()
         {
@@ -107,6 +113,21 @@ namespace DominantK.Systems
                 storesByChain[chain] = new List<ConvenienceStore>();
                 dominantCounts[chain] = 0;
             }
+
+            CreateTriangleMaterial();
+        }
+
+        private void CreateTriangleMaterial()
+        {
+            var shader = Shader.Find("Universal Render Pipeline/Lit");
+            if (shader == null) shader = Shader.Find("Standard");
+
+            triangleMaterial = new Material(shader);
+            triangleMaterial.SetFloat("_Surface", 1);
+            triangleMaterial.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
+            triangleMaterial.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+            triangleMaterial.SetInt("_ZWrite", 0);
+            triangleMaterial.renderQueue = 3000;
         }
 
         private void Update()
@@ -227,6 +248,8 @@ namespace DominantK.Systems
 
         private void CheckTriangleCaptures()
         {
+            if (placementSystem == null) return;
+
             var storesToDestroy = new List<ConvenienceStore>();
 
             foreach (var triangle in activeTriangles)
@@ -247,7 +270,7 @@ namespace DominantK.Systems
             }
 
             // Destroy captured stores
-            foreach (var store in storesToDestroy.Distinct())
+            foreach (var store in storesToDestroy.Distinct().ToList())
             {
                 Debug.Log($"Store {store.Data.displayName} captured by Dominant Triangle!");
                 placementSystem.RemoveStore(store);
@@ -256,6 +279,8 @@ namespace DominantK.Systems
 
         private void ProcessRevenue()
         {
+            if (placementSystem == null || GameManager.Instance == null) return;
+
             var playerStores = placementSystem.GetStoresByOwner(true);
 
             foreach (var store in playerStores)
@@ -298,23 +323,20 @@ namespace DominantK.Systems
                 triangle.worldVertices[1] + Vector3.up * 0.1f,
                 triangle.worldVertices[2] + Vector3.up * 0.1f
             };
-            mesh.triangles = new int[] { 0, 1, 2 };
+            mesh.triangles = new int[] { 0, 1, 2, 2, 1, 0 }; // Double-sided
             mesh.RecalculateNormals();
 
             meshFilter.mesh = mesh;
 
-            if (triangleMaterial != null)
+            var mat = new Material(triangleMaterial);
+            var store = triangle.store1;
+            if (store.Data != null)
             {
-                meshRenderer.material = new Material(triangleMaterial);
-                // Set color based on chain
-                var store = triangle.store1;
-                if (store.Data != null)
-                {
-                    var color = store.Data.chainColor;
-                    color.a = 0.3f;
-                    meshRenderer.material.color = color;
-                }
+                var color = store.Data.chainColor;
+                color.a = 0.3f;
+                mat.color = color;
             }
+            meshRenderer.material = mat;
 
             triangleVisuals.Add(go);
         }
@@ -343,6 +365,8 @@ namespace DominantK.Systems
 
         public bool AreAllEnemiesDefeated()
         {
+            if (GameManager.Instance == null) return false;
+
             ChainType playerChain = GameManager.Instance.PlayerChain;
 
             foreach (var kvp in storesByChain)

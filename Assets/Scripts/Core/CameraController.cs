@@ -2,29 +2,47 @@ using UnityEngine;
 
 namespace DominantK.Core
 {
+    /// <summary>
+    /// Quarter-view (isometric-style) camera controller for 3D gameplay
+    /// </summary>
     public class CameraController : MonoBehaviour
     {
+        [Header("Quarter View Settings")]
+        [SerializeField] private float cameraAngleX = 45f;  // Pitch (looking down)
+        [SerializeField] private float cameraAngleY = 45f;  // Yaw (rotation around Y)
+        [SerializeField] private bool useOrthographic = true;
+
         [Header("Movement")]
         [SerializeField] private float panSpeed = 20f;
         [SerializeField] private float panBorderThickness = 10f;
         [SerializeField] private bool useEdgePan = true;
         [SerializeField] private bool useKeyboardPan = true;
+        [SerializeField] private bool useDragPan = true;
+        [SerializeField] private float dragPanSpeed = 0.5f;
 
         [Header("Zoom")]
-        [SerializeField] private float zoomSpeed = 5f;
-        [SerializeField] private float minZoom = 5f;
-        [SerializeField] private float maxZoom = 50f;
+        [SerializeField] private float zoomSpeed = 2f;
+        [SerializeField] private float minOrthoSize = 5f;
+        [SerializeField] private float maxOrthoSize = 30f;
+        [SerializeField] private float defaultOrthoSize = 15f;
 
         [Header("Bounds")]
         [SerializeField] private bool useBounds = true;
         [SerializeField] private Vector2 minBounds = new Vector2(-10, -10);
         [SerializeField] private Vector2 maxBounds = new Vector2(60, 60);
 
-        [Header("Initial Position")]
-        [SerializeField] private Vector3 startPosition = new Vector3(25, 30, 25);
-        [SerializeField] private Vector3 startRotation = new Vector3(60, 0, 0);
+        [Header("Focus")]
+        [SerializeField] private Vector3 initialFocusPoint = new Vector3(25, 0, 25);
+        [SerializeField] private float cameraDistance = 50f;
 
         private Camera cam;
+        private Vector3 focusPoint;
+        private Vector3 lastMousePosition;
+        private bool isDragging;
+
+        // Direction vectors for quarter view movement (rotated 45 degrees)
+        private Vector3 forwardDir;
+        private Vector3 rightDir;
 
         private void Awake()
         {
@@ -37,75 +55,148 @@ namespace DominantK.Core
 
         private void Start()
         {
-            transform.position = startPosition;
-            transform.eulerAngles = startRotation;
+            SetupQuarterView();
+        }
+
+        private void SetupQuarterView()
+        {
+            focusPoint = initialFocusPoint;
+
+            // Calculate camera rotation
+            Quaternion rotation = Quaternion.Euler(cameraAngleX, cameraAngleY, 0);
+            transform.rotation = rotation;
+
+            // Position camera based on focus point and distance
+            UpdateCameraPosition();
+
+            // Setup orthographic
+            if (useOrthographic && cam != null)
+            {
+                cam.orthographic = true;
+                cam.orthographicSize = defaultOrthoSize;
+            }
+
+            // Calculate movement directions (45 degree rotated)
+            float yawRad = cameraAngleY * Mathf.Deg2Rad;
+            forwardDir = new Vector3(-Mathf.Sin(yawRad), 0, -Mathf.Cos(yawRad)).normalized;
+            rightDir = new Vector3(Mathf.Cos(yawRad), 0, -Mathf.Sin(yawRad)).normalized;
         }
 
         private void Update()
         {
-            HandleMovement();
+            HandleKeyboardPan();
+            HandleEdgePan();
+            HandleDragPan();
             HandleZoom();
-            ClampPosition();
+            ClampFocusPoint();
+            UpdateCameraPosition();
         }
 
-        private void HandleMovement()
+        private void HandleKeyboardPan()
         {
+            if (!useKeyboardPan) return;
+
             Vector3 moveDirection = Vector3.zero;
 
-            // Keyboard input
-            if (useKeyboardPan)
+            // W/S moves along the visual "up/down" direction
+            if (Input.GetKey(KeyCode.W) || Input.GetKey(KeyCode.UpArrow))
+                moveDirection += forwardDir;
+            if (Input.GetKey(KeyCode.S) || Input.GetKey(KeyCode.DownArrow))
+                moveDirection -= forwardDir;
+
+            // A/D moves along the visual "left/right" direction
+            if (Input.GetKey(KeyCode.A) || Input.GetKey(KeyCode.LeftArrow))
+                moveDirection -= rightDir;
+            if (Input.GetKey(KeyCode.D) || Input.GetKey(KeyCode.RightArrow))
+                moveDirection += rightDir;
+
+            if (moveDirection.sqrMagnitude > 0.01f)
             {
-                if (Input.GetKey(KeyCode.W) || Input.GetKey(KeyCode.UpArrow))
-                    moveDirection += Vector3.forward;
-                if (Input.GetKey(KeyCode.S) || Input.GetKey(KeyCode.DownArrow))
-                    moveDirection += Vector3.back;
-                if (Input.GetKey(KeyCode.A) || Input.GetKey(KeyCode.LeftArrow))
-                    moveDirection += Vector3.left;
-                if (Input.GetKey(KeyCode.D) || Input.GetKey(KeyCode.RightArrow))
-                    moveDirection += Vector3.right;
+                focusPoint += moveDirection.normalized * panSpeed * Time.deltaTime;
+            }
+        }
+
+        private void HandleEdgePan()
+        {
+            if (!useEdgePan) return;
+
+            Vector3 mousePos = Input.mousePosition;
+            Vector3 moveDirection = Vector3.zero;
+
+            if (mousePos.y >= Screen.height - panBorderThickness)
+                moveDirection += forwardDir;
+            if (mousePos.y <= panBorderThickness)
+                moveDirection -= forwardDir;
+            if (mousePos.x >= Screen.width - panBorderThickness)
+                moveDirection += rightDir;
+            if (mousePos.x <= panBorderThickness)
+                moveDirection -= rightDir;
+
+            if (moveDirection.sqrMagnitude > 0.01f)
+            {
+                focusPoint += moveDirection.normalized * panSpeed * Time.deltaTime;
+            }
+        }
+
+        private void HandleDragPan()
+        {
+            if (!useDragPan) return;
+
+            // Middle mouse button drag
+            if (Input.GetMouseButtonDown(2))
+            {
+                isDragging = true;
+                lastMousePosition = Input.mousePosition;
             }
 
-            // Edge pan
-            if (useEdgePan)
+            if (Input.GetMouseButtonUp(2))
             {
-                Vector3 mousePos = Input.mousePosition;
-
-                if (mousePos.y >= Screen.height - panBorderThickness)
-                    moveDirection += Vector3.forward;
-                if (mousePos.y <= panBorderThickness)
-                    moveDirection += Vector3.back;
-                if (mousePos.x >= Screen.width - panBorderThickness)
-                    moveDirection += Vector3.right;
-                if (mousePos.x <= panBorderThickness)
-                    moveDirection += Vector3.left;
+                isDragging = false;
             }
 
-            // Apply movement (ignore Y component from camera rotation)
-            Vector3 move = new Vector3(moveDirection.x, 0, moveDirection.z).normalized;
-            transform.position += move * panSpeed * Time.deltaTime;
+            if (isDragging)
+            {
+                Vector3 delta = Input.mousePosition - lastMousePosition;
+                lastMousePosition = Input.mousePosition;
+
+                // Convert screen delta to world movement
+                Vector3 move = (-rightDir * delta.x - forwardDir * delta.y) * dragPanSpeed * Time.deltaTime;
+                focusPoint += move;
+            }
         }
 
         private void HandleZoom()
         {
             float scroll = Input.GetAxis("Mouse ScrollWheel");
 
-            if (Mathf.Abs(scroll) > 0.01f)
+            if (Mathf.Abs(scroll) > 0.01f && cam != null)
             {
-                Vector3 pos = transform.position;
-                pos.y -= scroll * zoomSpeed * 10f;
-                pos.y = Mathf.Clamp(pos.y, minZoom, maxZoom);
-                transform.position = pos;
+                if (useOrthographic)
+                {
+                    cam.orthographicSize -= scroll * zoomSpeed * 10f;
+                    cam.orthographicSize = Mathf.Clamp(cam.orthographicSize, minOrthoSize, maxOrthoSize);
+                }
+                else
+                {
+                    cameraDistance -= scroll * zoomSpeed * 10f;
+                    cameraDistance = Mathf.Clamp(cameraDistance, 10f, 100f);
+                }
             }
         }
 
-        private void ClampPosition()
+        private void ClampFocusPoint()
         {
             if (!useBounds) return;
 
-            Vector3 pos = transform.position;
-            pos.x = Mathf.Clamp(pos.x, minBounds.x, maxBounds.x);
-            pos.z = Mathf.Clamp(pos.z, minBounds.y, maxBounds.y);
-            transform.position = pos;
+            focusPoint.x = Mathf.Clamp(focusPoint.x, minBounds.x, maxBounds.x);
+            focusPoint.z = Mathf.Clamp(focusPoint.z, minBounds.y, maxBounds.y);
+        }
+
+        private void UpdateCameraPosition()
+        {
+            // Calculate position offset from focus point based on rotation and distance
+            Vector3 offset = Quaternion.Euler(cameraAngleX, cameraAngleY, 0) * Vector3.back * cameraDistance;
+            transform.position = focusPoint + offset;
         }
 
         public void SetBounds(Vector2 min, Vector2 max)
@@ -116,10 +207,46 @@ namespace DominantK.Core
 
         public void FocusOn(Vector3 worldPosition)
         {
-            Vector3 pos = transform.position;
-            pos.x = worldPosition.x;
-            pos.z = worldPosition.z;
-            transform.position = pos;
+            focusPoint = new Vector3(worldPosition.x, 0, worldPosition.z);
+        }
+
+        public void SetZoom(float normalizedZoom)
+        {
+            if (cam != null && useOrthographic)
+            {
+                cam.orthographicSize = Mathf.Lerp(minOrthoSize, maxOrthoSize, 1f - normalizedZoom);
+            }
+        }
+
+        /// <summary>
+        /// Get the ground position under the mouse cursor
+        /// </summary>
+        public bool GetMouseGroundPosition(out Vector3 position, LayerMask groundLayer)
+        {
+            position = Vector3.zero;
+
+            if (cam == null) return false;
+
+            Ray ray = cam.ScreenPointToRay(Input.mousePosition);
+
+            if (Physics.Raycast(ray, out RaycastHit hit, 1000f, groundLayer))
+            {
+                position = hit.point;
+                return true;
+            }
+
+            // Fallback: intersect with Y=0 plane
+            if (ray.direction.y != 0)
+            {
+                float t = -ray.origin.y / ray.direction.y;
+                if (t > 0)
+                {
+                    position = ray.origin + ray.direction * t;
+                    return true;
+                }
+            }
+
+            return false;
         }
     }
 }

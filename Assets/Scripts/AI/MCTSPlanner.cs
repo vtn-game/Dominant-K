@@ -204,9 +204,9 @@ namespace DominantK.AI
                 if (availableActions.Count == 0) break;
 
                 // ランダムに配置
-                var action = availableActions[random.Next(availableActions.Count)];
+                var selectedAction = availableActions[random.Next(availableActions.Count)];
                 var store = new StorePosition(
-                    -1, action.GridPosition, action.WorldPosition, node.MyChain, false, 4f
+                    -1, selectedAction.GridPosition, selectedAction.WorldPosition, node.MyChain, false, 4f
                 );
                 simState.AddStore(store);
                 simDepth++;

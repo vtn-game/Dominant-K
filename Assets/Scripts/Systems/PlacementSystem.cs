@@ -13,24 +13,32 @@ namespace DominantK.Systems
         [SerializeField] private DominantSystem dominantSystem;
         [SerializeField] private Camera mainCamera;
 
-        [Header("Store Data")]
-        [SerializeField] private List<ConvenienceStoreData> availableStores;
-        [SerializeField] private ConvenienceStoreData selectedStoreData;
+        [Header("Settings")]
+        [SerializeField] private LayerMask groundLayer = ~0;
 
         [Header("Preview")]
-        [SerializeField] private GameObject previewObject;
-        [SerializeField] private Material validPlacementMaterial;
-        [SerializeField] private Material invalidPlacementMaterial;
+        [SerializeField] private Color validPlacementColor = new Color(0, 1, 0, 0.5f);
+        [SerializeField] private Color invalidPlacementColor = new Color(1, 0, 0, 0.5f);
 
-        [Header("Settings")]
-        [SerializeField] private LayerMask groundLayer;
-
+        private ConvenienceStoreData selectedStoreData;
         private bool isPlacementMode;
         private Vector2Int currentPreviewPosition;
         private List<ConvenienceStore> allStores = new List<ConvenienceStore>();
 
+        private GameObject previewObject;
+        private MeshRenderer previewRenderer;
+        private Material previewMaterial;
+
         public List<ConvenienceStore> AllStores => allStores;
         public bool IsPlacementMode => isPlacementMode;
+        public ConvenienceStoreData SelectedStoreData => selectedStoreData;
+
+        public void Setup(GridSystem grid, DominantSystem dominant, Camera camera)
+        {
+            gridSystem = grid;
+            dominantSystem = dominant;
+            mainCamera = camera;
+        }
 
         public void Initialize()
         {
@@ -38,11 +46,41 @@ namespace DominantK.Systems
             {
                 mainCamera = Camera.main;
             }
+
+            CreatePreviewObject();
+        }
+
+        private void CreatePreviewObject()
+        {
+            previewObject = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            previewObject.name = "PlacementPreview";
+            previewObject.transform.SetParent(transform);
+
+            // Remove collider
+            var collider = previewObject.GetComponent<Collider>();
+            if (collider != null) Destroy(collider);
+
+            // Setup transparent material
+            previewRenderer = previewObject.GetComponent<MeshRenderer>();
+            var shader = Shader.Find("Universal Render Pipeline/Lit");
+            if (shader == null) shader = Shader.Find("Standard");
+
+            previewMaterial = new Material(shader);
+            previewMaterial.SetFloat("_Surface", 1); // Transparent
+            previewMaterial.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
+            previewMaterial.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+            previewMaterial.SetInt("_ZWrite", 0);
+            previewMaterial.renderQueue = 3000;
+            previewMaterial.color = validPlacementColor;
+            previewRenderer.material = previewMaterial;
+
+            previewObject.transform.localScale = new Vector3(0.8f, 1f, 0.8f);
+            previewObject.SetActive(false);
         }
 
         private void Update()
         {
-            if (GameManager.Instance == null) return;
+            if (gridSystem == null) return;
 
             HandleInput();
             UpdatePreview();
@@ -57,48 +95,48 @@ namespace DominantK.Systems
                 return;
             }
 
-            // Left click to place or select
-            if (Input.GetMouseButtonDown(0))
+            // Left click to place
+            if (Input.GetMouseButtonDown(0) && isPlacementMode)
             {
-                if (isPlacementMode)
-                {
-                    TryPlaceStore();
-                }
-                else
-                {
-                    TrySelectCell();
-                }
+                TryPlaceStore();
             }
         }
 
         private void UpdatePreview()
         {
-            if (!isPlacementMode || previewObject == null) return;
+            if (!isPlacementMode || previewObject == null || mainCamera == null) return;
 
             Ray ray = mainCamera.ScreenPointToRay(Input.mousePosition);
+
+            // Try raycast first
             if (Physics.Raycast(ray, out RaycastHit hit, 1000f, groundLayer))
             {
-                var cell = gridSystem.GetCellFromWorldPosition(hit.point);
-                if (cell != null)
+                UpdatePreviewPosition(hit.point);
+            }
+            // Fallback to plane intersection
+            else if (ray.direction.y != 0)
+            {
+                float t = -ray.origin.y / ray.direction.y;
+                if (t > 0)
                 {
-                    currentPreviewPosition = cell.position;
-                    Vector3 worldPos = gridSystem.GetWorldPosition(cell.position);
-                    previewObject.transform.position = worldPos;
-
-                    bool canPlace = CanPlaceAt(cell);
-                    UpdatePreviewMaterial(canPlace);
+                    Vector3 point = ray.origin + ray.direction * t;
+                    UpdatePreviewPosition(point);
                 }
             }
         }
 
-        private void UpdatePreviewMaterial(bool valid)
+        private void UpdatePreviewPosition(Vector3 worldPoint)
         {
-            if (previewObject == null) return;
-
-            var renderer = previewObject.GetComponent<MeshRenderer>();
-            if (renderer != null)
+            var cell = gridSystem.GetCellFromWorldPosition(worldPoint);
+            if (cell != null)
             {
-                renderer.material = valid ? validPlacementMaterial : invalidPlacementMaterial;
+                currentPreviewPosition = cell.position;
+                Vector3 worldPos = gridSystem.GetWorldPosition(cell.position);
+                worldPos.y = 0.5f;
+                previewObject.transform.position = worldPos;
+
+                bool canPlace = CanPlaceAt(cell);
+                previewMaterial.color = canPlace ? validPlacementColor : invalidPlacementColor;
             }
         }
 
@@ -110,6 +148,13 @@ namespace DominantK.Systems
             if (previewObject != null)
             {
                 previewObject.SetActive(true);
+                // Update preview color to match chain
+                if (storeData != null)
+                {
+                    var color = storeData.chainColor;
+                    color.a = 0.5f;
+                    validPlacementColor = color;
+                }
             }
         }
 
@@ -137,7 +182,7 @@ namespace DominantK.Systems
             }
 
             // Check if player has enough funds
-            if (selectedStoreData != null &&
+            if (selectedStoreData != null && GameManager.Instance != null &&
                 GameManager.Instance.PlayerFunds < selectedStoreData.buildCost)
             {
                 return false;
@@ -154,7 +199,7 @@ namespace DominantK.Systems
             if (selectedStoreData == null) return;
 
             // Spend funds
-            if (!GameManager.Instance.TrySpendFunds(selectedStoreData.buildCost))
+            if (GameManager.Instance != null && !GameManager.Instance.TrySpendFunds(selectedStoreData.buildCost))
             {
                 return;
             }
@@ -162,7 +207,6 @@ namespace DominantK.Systems
             // Destroy building if present (Phase 1 mechanic)
             if (cell.HasBuilding)
             {
-                cell.building.OnDestroyed();
                 gridSystem.DestroyBuilding(currentPreviewPosition);
             }
 
@@ -177,43 +221,98 @@ namespace DominantK.Systems
                 dominantSystem?.OnStoreAdded(store);
 
                 // Check victory condition
-                GameManager.Instance.CheckPhase1Victory();
-            }
-        }
-
-        private void TrySelectCell()
-        {
-            Ray ray = mainCamera.ScreenPointToRay(Input.mousePosition);
-            if (Physics.Raycast(ray, out RaycastHit hit, 1000f, groundLayer))
-            {
-                var cell = gridSystem.GetCellFromWorldPosition(hit.point);
-                if (cell != null && cell.HasStore)
-                {
-                    // Select store for info display, etc.
-                    Debug.Log($"Selected store: {cell.store.Data.displayName}");
-                }
+                GameManager.Instance?.CheckPhase1Victory();
             }
         }
 
         public ConvenienceStore CreateStore(Vector2Int position, ConvenienceStoreData data, bool playerOwned)
         {
-            if (data.prefab == null)
+            Vector3 worldPos = gridSystem.GetWorldPosition(position);
+
+            // Create store from primitive if no prefab
+            GameObject storeObj;
+            if (data.prefab != null)
             {
-                Debug.LogError($"Store prefab is null for {data.displayName}");
-                return null;
+                storeObj = Instantiate(data.prefab, worldPos, Quaternion.identity, transform);
+            }
+            else
+            {
+                storeObj = CreateStorePrimitive(worldPos, data);
             }
 
-            Vector3 worldPos = gridSystem.GetWorldPosition(position);
-            var storeObj = Instantiate(data.prefab, worldPos, Quaternion.identity, transform);
             var store = storeObj.GetComponent<ConvenienceStore>();
-
             if (store == null)
             {
                 store = storeObj.AddComponent<ConvenienceStore>();
             }
 
-            ChainType owner = playerOwned ? GameManager.Instance.PlayerChain : data.chainType;
+            ChainType owner = playerOwned && GameManager.Instance != null
+                ? GameManager.Instance.PlayerChain
+                : data.chainType;
             store.Initialize(data, position, owner, playerOwned);
+
+            return store;
+        }
+
+        private GameObject CreateStorePrimitive(Vector3 position, ConvenienceStoreData data)
+        {
+            var store = new GameObject($"Store_{data.displayName}");
+            store.transform.SetParent(transform);
+            store.transform.position = position;
+
+            // Main building
+            var building = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            building.transform.SetParent(store.transform);
+            building.transform.localPosition = new Vector3(0, 0.5f, 0);
+            building.transform.localScale = new Vector3(0.9f, 1f, 0.9f);
+
+            var shader = Shader.Find("Universal Render Pipeline/Lit");
+            if (shader == null) shader = Shader.Find("Standard");
+
+            var mat = new Material(shader);
+            mat.color = data.chainColor;
+            building.GetComponent<MeshRenderer>().material = mat;
+
+            // Sign/roof
+            var sign = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            sign.transform.SetParent(store.transform);
+            sign.transform.localPosition = new Vector3(0, 1.1f, 0);
+            sign.transform.localScale = new Vector3(1f, 0.2f, 1f);
+
+            var signMat = new Material(shader);
+            signMat.color = data.chainColor * 1.2f;
+            sign.GetComponent<MeshRenderer>().material = signMat;
+
+            return store;
+        }
+
+        public ConvenienceStore PlaceStore(Vector2Int position, ConvenienceStoreData data, bool playerOwned)
+        {
+            var cell = gridSystem.GetCell(position);
+            if (cell == null) return null;
+
+            // Cannot place on roads, stations, or existing stores
+            if (cell.cellType == CellType.Road ||
+                cell.cellType == CellType.Station ||
+                cell.cellType == CellType.ConvenienceStore)
+            {
+                return null;
+            }
+
+            // Destroy building if present
+            if (cell.HasBuilding)
+            {
+                gridSystem.DestroyBuilding(position);
+            }
+
+            // Create store
+            var store = CreateStore(position, data, playerOwned);
+            if (store != null)
+            {
+                gridSystem.PlaceStore(position, store);
+                allStores.Add(store);
+                dominantSystem?.OnStoreAdded(store);
+            }
 
             return store;
         }

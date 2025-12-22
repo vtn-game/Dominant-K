@@ -23,7 +23,7 @@ namespace DominantK.ECS.Authoring
         [Header("Visual")]
         public Color chainColor = Color.white;
 
-        private class Baker : Baker<ConvenienceStoreAuthoring>
+        private class Baker : Unity.Entities.Baker<ConvenienceStoreAuthoring>
         {
             public override void Bake(ConvenienceStoreAuthoring authoring)
             {

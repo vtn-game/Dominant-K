@@ -26,10 +26,13 @@ namespace DominantK.Core
         [SerializeField] private DominantSystem dominantSystem;
 
         private float phaseTimer;
+        private bool isInitialized;
 
         public GamePhase CurrentPhase => currentPhase;
         public ChainType PlayerChain => playerChain;
         public int PlayerFunds => playerFunds;
+        public float PhaseTimer => phaseTimer;
+        public float Phase1Duration => phase1Duration;
 
         public event Action<GamePhase> OnPhaseChanged;
         public event Action<int> OnFundsChanged;
@@ -44,24 +47,27 @@ namespace DominantK.Core
             Instance = this;
         }
 
-        private void Start()
+        public void Setup(ChainType chain, int startFunds, GridSystem grid, PlacementSystem placement, DominantSystem dominant)
         {
-            InitializeGame();
+            playerChain = chain;
+            playerFunds = startFunds;
+            gridSystem = grid;
+            placementSystem = placement;
+            dominantSystem = dominant;
+
+            currentPhase = GamePhase.Phase1_2D;
+            phaseTimer = 0f;
+            isInitialized = true;
+
+            OnFundsChanged?.Invoke(playerFunds);
+            OnPhaseChanged?.Invoke(currentPhase);
         }
 
         private void Update()
         {
+            if (!isInitialized) return;
+
             UpdatePhaseTimer();
-        }
-
-        private void InitializeGame()
-        {
-            currentPhase = GamePhase.Phase1_2D;
-            phaseTimer = 0f;
-
-            gridSystem?.Initialize();
-            placementSystem?.Initialize();
-            dominantSystem?.Initialize();
         }
 
         private void UpdatePhaseTimer()

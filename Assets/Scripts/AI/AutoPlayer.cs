@@ -170,15 +170,15 @@ namespace DominantK.AI
 
         private void UpdateBoardState()
         {
-            int width = gridSystem.GridWidth;
-            int height = gridSystem.GridHeight;
+            int width = gridSystem.Width;
+            int height = gridSystem.Height;
 
             currentBoardState = new BoardState(width, height);
 
             // 全店舗を取得
             if (placementSystem != null)
             {
-                var allStores = placementSystem.GetAllStores();
+                var allStores = placementSystem.AllStores;
                 foreach (var store in allStores)
                 {
                     var pos = store.GridPosition;
@@ -200,9 +200,9 @@ namespace DominantK.AI
         {
             var cells = new List<int2>();
 
-            for (int x = 0; x < gridSystem.GridWidth; x++)
+            for (int x = 0; x < gridSystem.Width; x++)
             {
-                for (int y = 0; y < gridSystem.GridHeight; y++)
+                for (int y = 0; y < gridSystem.Height; y++)
                 {
                     var gridPos = new int2(x, y);
                     if (!currentBoardState.OccupiedCells.Contains(gridPos))
@@ -225,7 +225,7 @@ namespace DominantK.AI
                 return PlacementAction.Invalid;
 
             var cell = availableCells[random.Next(availableCells.Count)];
-            var worldPos = gridSystem.GridToWorld(new Vector2Int(cell.x, cell.y));
+            var worldPos = gridSystem.GetWorldPosition(new Vector2Int(cell.x, cell.y));
 
             return new PlacementAction
             {
@@ -242,7 +242,7 @@ namespace DominantK.AI
             var allActions = new List<PlacementAction>();
             foreach (var cell in availableCells)
             {
-                var worldPos = gridSystem.GridToWorld(new Vector2Int(cell.x, cell.y));
+                var worldPos = gridSystem.GetWorldPosition(new Vector2Int(cell.x, cell.y));
                 allActions.Add(new PlacementAction
                 {
                     GridPosition = cell,
@@ -270,7 +270,7 @@ namespace DominantK.AI
                 aiChain,
                 filteredCells,
                 cell => {
-                    var worldPos = gridSystem.GridToWorld(new Vector2Int(cell.x, cell.y));
+                    var worldPos = gridSystem.GetWorldPosition(new Vector2Int(cell.x, cell.y));
                     return new float3(worldPos.x, worldPos.y, worldPos.z);
                 }
             );
@@ -321,7 +321,7 @@ namespace DominantK.AI
 
             foreach (var cell in availableCells)
             {
-                var worldPos = gridSystem.GridToWorld(new Vector2Int(cell.x, cell.y));
+                var worldPos = gridSystem.GetWorldPosition(new Vector2Int(cell.x, cell.y));
                 allActions.Add(new PlacementAction
                 {
                     GridPosition = cell,

@@ -5,6 +5,7 @@
         "Unity.TextMeshPro",
         "Unity.RenderPipelines.Universal.Runtime",
         "Unity.Entities",
+        "Unity.Entities.Hybrid",
         "Unity.Entities.Graphics",
         "Unity.Transforms",
         "Unity.Burst",
