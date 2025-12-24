@@ -14,7 +14,7 @@ on:
 jobs:
   compile-check:
     # Self-Hosted Runnerで実行
-    runs-on: [self-hosted, PRCheck, Windows]
+    runs-on: [self-hosted, Unity, Windows]
 
     steps:
     # リポジトリをチェックアウト
