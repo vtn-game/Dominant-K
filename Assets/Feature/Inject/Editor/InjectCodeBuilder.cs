@@ -199,28 +199,44 @@ public static class InjectCodeBuilder
             }
 
             sb.AppendLine();
-            sb.AppendLine($"public partial class {type.Name}");
-            sb.AppendLine("{");
-            sb.AppendLine("    /// <summary>");
-            sb.AppendLine("    /// 注入パラメータを適用");
-            sb.AppendLine("    /// </summary>");
-            sb.AppendLine("    private void ApplyInjectParams()");
-            sb.AppendLine("    {");
-            sb.AppendLine("        if (!InjectSystem.IsParamInjectSettingsAvailable()) return;");
-            sb.AppendLine("        var settings = InjectSystem.ParamInjectSettingsProperty;");
-            sb.AppendLine("        if (settings?.SelectedParamList == null) return;");
-            sb.AppendLine("        var paramList = settings.SelectedParamList;");
+
+            // 名前空間の有無を確認
+            var hasNamespace = !string.IsNullOrEmpty(type.Namespace);
+            var indent = hasNamespace ? "    " : "";
+
+            if (hasNamespace)
+            {
+                sb.AppendLine($"namespace {type.Namespace}");
+                sb.AppendLine("{");
+            }
+
+            sb.AppendLine($"{indent}public partial class {type.Name}");
+            sb.AppendLine($"{indent}{{");
+            sb.AppendLine($"{indent}    /// <summary>");
+            sb.AppendLine($"{indent}    /// 注入パラメータを適用");
+            sb.AppendLine($"{indent}    /// </summary>");
+            sb.AppendLine($"{indent}    private void ApplyInjectParams()");
+            sb.AppendLine($"{indent}    {{");
+            sb.AppendLine($"{indent}        if (!InjectSystem.IsParamInjectSettingsAvailable()) return;");
+            sb.AppendLine($"{indent}        var settings = InjectSystem.ParamInjectSettingsProperty;");
+            sb.AppendLine($"{indent}        if (settings?.SelectedParamList == null) return;");
+            sb.AppendLine($"{indent}        var paramList = settings.SelectedParamList;");
             sb.AppendLine();
 
             foreach (var field in fields)
             {
                 var fieldName = field.Name;
                 var propertyName = ToUpperCamelCase(field.Name.TrimStart('_'));
-                sb.AppendLine($"        {fieldName} = paramList.{propertyName};");
+                sb.AppendLine($"{indent}        {fieldName} = paramList.{propertyName};");
             }
 
-            sb.AppendLine("    }");
-            sb.AppendLine("}");
+            sb.AppendLine($"{indent}    }}");
+            sb.AppendLine($"{indent}}}");
+
+            if (hasNamespace)
+            {
+                sb.AppendLine("}");
+            }
 
             // ファイルに書き込み
             var fileName = $"{type.Name}InjectParams.cs";

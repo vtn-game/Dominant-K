@@ -9,11 +9,11 @@ namespace DominantK.Core
     /// Bootstrap script that sets up the entire InGame scene.
     /// Add this to an empty GameObject in a new scene to create the game.
     /// </summary>
-    public class InGameBootstrap : MonoBehaviour
+    public partial class InGameBootstrap : MonoBehaviour
     {
         [Header("Grid Settings")]
-        [SerializeField] private int gridWidth = 30;
-        [SerializeField] private int gridHeight = 30;
+        [SerializeField, Inject] private int gridWidth = 30;
+        [SerializeField, Inject] private int gridHeight = 30;
         [SerializeField] private float cellSize = 1f;
 
         [Header("Player Settings")]
