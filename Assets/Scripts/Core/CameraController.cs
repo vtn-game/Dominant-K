@@ -98,11 +98,11 @@ namespace DominantK.Core
 
             Vector3 moveDirection = Vector3.zero;
 
-            // W/S moves along the visual "up/down" direction
+            // W/S moves along the visual "up/down" direction (inverted)
             if (Input.GetKey(KeyCode.W) || Input.GetKey(KeyCode.UpArrow))
-                moveDirection += forwardDir;
-            if (Input.GetKey(KeyCode.S) || Input.GetKey(KeyCode.DownArrow))
                 moveDirection -= forwardDir;
+            if (Input.GetKey(KeyCode.S) || Input.GetKey(KeyCode.DownArrow))
+                moveDirection += forwardDir;
 
             // A/D moves along the visual "left/right" direction
             if (Input.GetKey(KeyCode.A) || Input.GetKey(KeyCode.LeftArrow))
@@ -124,9 +124,9 @@ namespace DominantK.Core
             Vector3 moveDirection = Vector3.zero;
 
             if (mousePos.y >= Screen.height - panBorderThickness)
-                moveDirection += forwardDir;
-            if (mousePos.y <= panBorderThickness)
                 moveDirection -= forwardDir;
+            if (mousePos.y <= panBorderThickness)
+                moveDirection += forwardDir;
             if (mousePos.x >= Screen.width - panBorderThickness)
                 moveDirection += rightDir;
             if (mousePos.x <= panBorderThickness)
@@ -159,8 +159,8 @@ namespace DominantK.Core
                 Vector3 delta = Input.mousePosition - lastMousePosition;
                 lastMousePosition = Input.mousePosition;
 
-                // Convert screen delta to world movement
-                Vector3 move = (-rightDir * delta.x - forwardDir * delta.y) * dragPanSpeed * Time.deltaTime;
+                // Convert screen delta to world movement (Y inverted)
+                Vector3 move = (-rightDir * delta.x + forwardDir * delta.y) * dragPanSpeed * Time.deltaTime;
                 focusPoint += move;
             }
         }
