@@ -297,8 +297,10 @@ namespace DominantK.Systems
 
         public GridCell GetCellFromWorldPosition(Vector3 worldPos)
         {
-            int x = Mathf.FloorToInt(worldPos.x / cellSize);
-            int z = Mathf.FloorToInt(worldPos.z / cellSize);
+            // NOTE: GetWorldPositionはセルの中心座標を返すため、
+            // ワールド座標からセル座標への変換時もセル中心を基準にする
+            int x = Mathf.RoundToInt(worldPos.x / cellSize - 0.5f);
+            int z = Mathf.RoundToInt(worldPos.z / cellSize - 0.5f);
             return GetCell(x, z);
         }
 
