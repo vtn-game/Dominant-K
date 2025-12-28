@@ -144,6 +144,9 @@ namespace DominantK.Core
 
         private void InitializeSystems()
         {
+            // NOTE: インゲーム中はマウスカーソルを画面内に制限する
+            Cursor.lockState = CursorLockMode.Confined;
+
             // Setup GridSystem
             gridSystem.Setup(gridWidth, gridHeight, cellSize);
 
