@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir:*)",
+      "Bash(find:*)",
+      "Bash(cat:*)",
+      "Bash(echo:*)",
+      "Bash(touch:*)",
+      "Bash(git:*)",
+      "Bash(gh:*)",
+      "Bash(grep:*)"
+    ],
+    "deny": []
+  },
+  "env": {
+  }
+}
